@@ -1,6 +1,6 @@
 {
   "name": "mangadex-req",
-  "version": "1.1.0",
+  "version": "1.1.1",
   "description": "Request content from mangadex.",
   "main": "index.js",
   "scripts": {
