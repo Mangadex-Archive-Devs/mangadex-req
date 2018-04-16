@@ -1,6 +1,6 @@
-const util = require('util');
-const {URL} = require('url');
-const h2 = require('http2');
+const util = require('util')
+const {URL} = require('url')
+const h2 = require('http2')
 const {
 	HTTP2_HEADER_PATH,
 	HTTP2_HEADER_STATUS,
@@ -8,7 +8,7 @@ const {
 	HTTP2_HEADER_CONTENT_TYPE,
 	HTTP2_HEADER_USER_AGENT,
 	HTTP2_HEADER_COOKIE
-} = h2.constants;
+} = h2.constants
 
 const base = 'https://mangadex.org'
 const UA = 'Mozilla/5.0 (Windows NT 6.3; WOW64)'
@@ -31,7 +31,7 @@ const getConnection = url => {
 		'close',
 		connections.delete.bind(connections, h.hostname)
 	)
-	return connection;
+	return connection
 }
 
 
@@ -226,13 +226,13 @@ const request = (path, onr = txify, server = new URL('string' === typeof path ? 
 	,
 	onr,
 	server
-));
+))
 const getManga = mid => request(`/api/3640f3fb/${mid}`, manga)
 const getChapter = cid => request(`/chapter/${cid}`, chapter)
 const getFullURLs = async cid => {
-	const {dataurl, pages} = durl.get(cid) || await getChapter(cid);
-	let pipe = getConnection(dataurl);
-	return {pipe, pageURLs: pages.map(x => new URL(x, dataurl))};
+	const {dataurl, pages} = durl.get(cid) || await getChapter(cid)
+	let pipe = getConnection(dataurl)
+	return {pipe, pageURLs: pages.map(x => new URL(x, dataurl))}
 }
 
 module.exports = {
