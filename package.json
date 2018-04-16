@@ -22,5 +22,8 @@
   "bugs": {
     "url": "https://github.com/ZaneHannanAU/mangadex-req/issues"
   },
-  "homepage": "https://github.com/ZaneHannanAU/mangadex-req#readme"
+  "homepage": "https://github.com/ZaneHannanAU/mangadex-req#readme",
+  "dependencies": {
+    "zmkdirp": "^2.0.1"
+  }
 }

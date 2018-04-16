@@ -194,8 +194,8 @@ async function chapter(data, res, rej, heads, flags) {
 	let [, parr] = tx.match(rgx.pagearr)
 	let [, serve]= tx.match(rgx.serverm)
 	const dataurl = new URL(srv+hash+'/', base)
-	const mdat = {dataurl, pages, mid: Number.parseInt(manid, 10), cid: Number.parseInt(chid)}
-	durl.set(mdat.chid, mdat)
+	const mdat = {dataurl, pages, mid: Number.parseInt(manid, 10), cid: Number.parseInt(chid), set: Date.now()}
+	durl.set(mdat.cid, mdat)
 	res(mdat)
 	return mdat
 }
@@ -237,11 +237,17 @@ const getFullURLs = async cid => {
 
 module.exports = {
 	request,
+
 	getManga,
 	getChapter,
 	getFullURLs,
+
 	getConnection,
+	connections,
+
+	durl,
+
 	genres,
-	stati
+	stati,
 }
 
