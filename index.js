@@ -137,7 +137,7 @@ const mangarev = (k, v) => {
 		case 'genres': return v.reduce((a=[],g)=>[
 			...a,
 			genres[g] || genre[0]
-		])
+		], [])
 		case 'status': return stati[v] || stati[0]
 		case 'chapter':
 			if ('string' === typeof v) return v
