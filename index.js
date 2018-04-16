@@ -133,7 +133,7 @@ const chrewrite = ({
 const ms = 1e3
 const mangarev = (k, v) => {
 	switch (k) {
-		case 'timestamp' return new Date(v*ms)
+		case 'timestamp': return new Date(v*ms)
 		case 'genres': return v.reduce((a=[],g)=>[
 			...a,
 			genres[g] || genre[0]
@@ -169,7 +169,7 @@ async function manga(data, res, rej, heads, flags) {
 
 const rgx = {
 	volchtitle: /<title>(?:Vol\. (\S+))?\s*(?:Ch\. (\S+))?\s*\((.+?)\) - MangaDex<\/title>/,
-	thumb: /<meta property="og:image" content="(.+\/\d+\.thumb\.[^"]+))">/,
+	thumb: /<meta property="og:image" content="(.+\/\d+\.thumb\.[^"]+)">/,
 	chapid: /var chapter_id = (\d+);/,
 	prchid: /var prev_chapter_id = (\d+);/,
 	nxchid: /var next_chapter_id = (\d+);/,
