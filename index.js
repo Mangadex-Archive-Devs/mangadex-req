@@ -22,7 +22,10 @@ const getConnection = url => {
 
 	let connection = h2.connect(h.origin)
 	connections.set(h.hostname, connection)
-	connection.on('goaway', connecion.close)
+	connection.on('goaway', (err, strid, data) => {
+		console.log('Recieved GOAWAY frame err %d, last stream %d, data %s (%j)', err, strid, data, data)
+		connection.close(() => console.log('closed connection with %s.', h.hostname))
+	})
 	connection.on('close', connecion.unref)
 	connection.on(
 		'close',
