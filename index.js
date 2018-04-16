@@ -31,8 +31,14 @@ const getConnection = url => {
 }
 
 
-const genres = ',4-koma,Action,Adventure,Award Winning,Comedy,Cooking,Doujinshi,Drama,Ecchi,Fantasy,Gender Bender,Harem,Historical,Horror,Josei,Martial Arts,Mecha,Medical,Music,Mystery,Oneshot,Psychological,Romance,School Life,Sci-Fi,Seinen,Shoujo,Shoujo Ai,Shounen,Shounen Ai,Slice of Life,Smut,Sports,Supernatural,Tragedy,Webtoon,Yaoi,Yuri,[no chapters],Game'.split(',').map((genre, genreid) => ({genre: genre || null, genreid}))
-const stati = 'unknown,ongoing,completed'.split(',').map((stat, n)=>({'status':stat,statusid:n}));
+const genres = [null, "4-koma", "Action", "Adventure", "Award Winning", "Comedy", "Cooking", 
+"Doujinshi", "Drama", "Ecchi", "Fantasy", "Gender Bender", "Harem", 
+"Historical", "Horror", "Josei", "Martial Arts", "Mecha", "Medical", "Music", 
+"Mystery", "Oneshot", "Psychological", "Romance", "School Life", "Sci-Fi", 
+"Seinen", "Shoujo", "Shoujo Ai", "Shounen", "Shounen Ai", "Slice of Life", 
+"Smut", "Sports", "Supernatural", "Tragedy", "Webtoon", "Yaoi", "Yuri", 
+"[no chapters]", "Game"];
+const stati = ["unknown", "ongoing", "completed"];
 const sort = (a, b) => (
 	!isNaN(a.volume) 
 	&& !isNaN(b.volume) 
