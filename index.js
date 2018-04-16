@@ -22,6 +22,7 @@ const getConnection = url => {
 
 	let connection = h2.connect(h.origin)
 	connections.set(h.hostname, connection)
+	connection.on('goaway', connecion.close)
 	connection.on('close', connecion.unref)
 	connection.on(
 		'close',
@@ -237,5 +238,7 @@ module.exports = {
 	getChapter,
 	getFullURLs,
 	getConnection,
+	genres,
+	stati
 }
 
