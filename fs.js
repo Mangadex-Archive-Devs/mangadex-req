@@ -14,15 +14,17 @@ const [fopen, fclose, fwrite, fappend, faccess] = [fs.open, fs.close, fs.write, 
 
 const x = mkdirp(path.join(os.tmpdir(), 'mangadex')).then(async dir => {
 	const ch = path.join(dir, 'ch.jsons')
-	if (await faccess(ch)) {
-		let rl = readline.createInterface({input: fs.createReadStream(ch)})
-		let e = new Promise(r=>rl.on('close',r))
-		rl.on('line', ln => {
-			let j = JSON.parse(ln)
-			if (j.set < dn) md.durl.set(j.cid, j)
-		})
-		await e
-	}
+	try {
+		if (await faccess(ch, fs.constants.R_OK)) {
+			let rl = readline.createInterface({input: fs.createReadStream(ch)})
+			let e = new Promise(r=>rl.on('close',r))
+			rl.on('line', ln => {
+				let j = JSON.parse(ln)
+				if (j.set < dn) md.durl.set(j.cid, j)
+			})
+			await e
+		}
+	} catch (e) {}
 	return {ch, dir}
 })
 const save = async () => {
