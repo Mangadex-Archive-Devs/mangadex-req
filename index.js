@@ -26,7 +26,7 @@ const getConnection = url => {
 		console.log('Recieved GOAWAY frame err %d, last stream %d, data %s (%j)', err, strid, data, data)
 		connection.close(() => console.log('closed connection with %s.', h.hostname))
 	})
-	connection.on('close', connecion.unref)
+	connection.on('close', connection.unref)
 	connection.on(
 		'close',
 		connections.delete.bind(connections, h.hostname)
