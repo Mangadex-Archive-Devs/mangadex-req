@@ -6,11 +6,13 @@ const {
 	HTTP2_HEADER_STATUS,
 	HTTP2_HEADER_METHOD,
 	HTTP2_HEADER_CONTENT_TYPE,
-	HTTP2_HEADER_USER_AGENT
+	HTTP2_HEADER_USER_AGENT,
+	HTTP2_HEADER_COOKIE
 } = h2.constants;
 
 const base = 'https://mangadex.org'
 const UA = 'Mozilla/5.0 (Windows NT 6.3; WOW64)'
+const COOKIES = 'mangadex_h_toggle=1'
 
 const connections = new Map
 const getConnection = url => {
@@ -101,8 +103,8 @@ const mangarev = (k, v) => {
 const dtx = res => new Promise(r => {
 	const decoder = new util.TextDecoder
 	let datas = ''
-	res.on('data', data => datas += decoder.decode(data, {stream: true}))
 	res.on('end', d => r(datas + decoder.decode(d, {stream: false})))
+	res.on('data', data => datas += decoder.decode(data, {stream: true}))
 })
 
 async function manga(data, res, rej, heads, flags) {
@@ -137,12 +139,12 @@ async function chapter(data, res, rej, heads, flags) {
 	let [, chid] = tx.match(rgx.chapid)
 	let [, pchid]= tx.match(rgx.prchid)
 	let [, nchid]= tx.match(rgx.nxchid)
-	let [, manga]= tx.match(rgx.mangid)
+	let [, manid]= tx.match(rgx.mangid)
 	let [, hash] = tx.match(rgx.dataurl)
 	let [, parr] = tx.match(rgx.pagearr)
 	let [, serve]= tx.match(rgx.serverm)
-	const dataurl = new URL(srv+hash+'/', mangaC)
-	const mdat = {dataurl, pages, mid: Number.parseInt(manga, 10), cid: Number.parseInt(chid)}
+	const dataurl = new URL(srv+hash+'/', base)
+	const mdat = {dataurl, pages, mid: Number.parseInt(manid, 10), cid: Number.parseInt(chid)}
 	durl.set(mdat.chid, mdat)
 	res(mdat)
 	return mdat
@@ -158,7 +160,10 @@ async function txify(data, res, rej, heads, flags) {
 }
 
 const __req = (data, onr, server = base, res, rej) => {
-	data[HTTP2_HEADER_USER_AGENT] = UA
+	if (server === base) {
+		data[HTTP2_HEADER_USER_AGENT] = UA
+		data[HTTP2_HEADER_COOKIE] = COOKIES
+	}
 	const _ = getConnection(server).request(data)
 	_.on('response', onr.bind(_, data, res, rej))
 }
