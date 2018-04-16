@@ -1,0 +1,26 @@
+{
+  "name": "mangadex-req",
+  "version": "1.0.0",
+  "description": "Request content from mangadex.",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+ssh://git@github.com/ZaneHannanAU/mangadex-req.git"
+  },
+  "keywords": [
+    "mangadex",
+    "http2",
+    "https",
+    "manga",
+    "request"
+  ],
+  "author": "zeen3",
+  "license": "WTFPL",
+  "bugs": {
+    "url": "https://github.com/ZaneHannanAU/mangadex-req/issues"
+  },
+  "homepage": "https://github.com/ZaneHannanAU/mangadex-req#readme"
+}

@@ -8,9 +8,13 @@ const {
 	HTTP2_HEADER_CONTENT_TYPE,
 	HTTP2_HEADER_USER_AGENT
 } = h2.constants;
+
+const base = 'https://mangadex.org'
+const UA = 'Mozilla/5.0 (Windows NT 6.3; WOW64)'
+
 const connections = new Map
 const getConnection = url => {
-	const h = new URL(url)
+	const h = new URL(url, base)
 	let c = connections.get(h.hostname)
 	if (c) return c
 
@@ -24,8 +28,6 @@ const getConnection = url => {
 	return connection;
 }
 
-const base = 'https://mangadex.org'
-const UA = 'Mozilla/5.0 (Windows NT 6.3; WOW64)'
 
 const genres = ',4-koma,Action,Adventure,Award Winning,Comedy,Cooking,Doujinshi,Drama,Ecchi,Fantasy,Gender Bender,Harem,Historical,Horror,Josei,Martial Arts,Mecha,Medical,Music,Mystery,Oneshot,Psychological,Romance,School Life,Sci-Fi,Seinen,Shoujo,Shoujo Ai,Shounen,Shounen Ai,Slice of Life,Smut,Sports,Supernatural,Tragedy,Webtoon,Yaoi,Yuri,[no chapters],Game'.split(',').map((genre, genreid) => ({genre: genre || null, genreid}))
 const stati = 'unknown,ongoing,completed'.split(',').map((stat, n)=>({'status':stat,statusid:n}));
@@ -145,22 +147,33 @@ async function chapter(data, res, rej, heads, flags) {
 	res(mdat)
 	return mdat
 }
+async function txify(data, res, rej, heads, flags) {
+	const data = {heads, data: await dtx(this)}
+	if (heads[HTTP2_HEADER_STATUS] !== 200) {
+		rej(data)
+		throw data
+	}
+	res(data)
+	return data
+}
 
 const __req = (data, onr, server = base, res, rej) => {
 	data[HTTP2_HEADER_USER_AGENT] = UA
 	const _ = getConnection(server).request(data)
 	_.on('response', onr.bind(_, data, res, rej))
 }
-const request = (path, onr, server = base) => new Promise(__req.bind(
+
+const request = (path, onr = txify, server = new URL('string' === typeof path ? path : '/', base).origin) => new Promise(__req.bind(
 	null,
-	'string' === typeof path
-		? {[HTTP2_HEADER_PATH]:path, endStream:false}
-		: path,
+	('string' === typeof path || path instanceof URL)
+		? {[HTTP2_HEADER_PATH]: new URL(path, base).pathname}
+		: path
+	,
 	onr,
 	server
 ));
-const getManga = mid => request(`/api/3640f3fb/${mid}`, onMangaResponse)
-const getChapter = cid => request(`/chapter/${cid}`, onChapterResponse)
+const getManga = mid => request(`/api/3640f3fb/${mid}`, manga)
+const getChapter = cid => request(`/chapter/${cid}`, chapter)
 const getFullURLs = async cid => {
 	const {dataurl, pages} = durl.get(cid) || await getChapter(cid);
 	let pipe = getConnection(dataurl);
