@@ -1,4 +1,5 @@
 const util = require('util')
+const zlib = require('zlib')
 const {URL} = require('url')
 const h2 = require('http2')
 const {
@@ -7,12 +8,28 @@ const {
 	HTTP2_HEADER_METHOD,
 	HTTP2_HEADER_CONTENT_TYPE,
 	HTTP2_HEADER_USER_AGENT,
-	HTTP2_HEADER_COOKIE
+	HTTP2_HEADER_COOKIE,
+	HTTP2_HEADER_ACCEPT_ENCODING,
+	HTTP2_HEADER_CONTENT_ENCODING,
 } = h2.constants
 
-const base = 'https://mangadex.org'
+const base = 'https://www.mangadex.org'
 const UA = 'Mozilla/5.0 (Windows NT 6.3; WOW64)'
 const COOKIES = 'mangadex_h_toggle=1'
+const ACCEPTENC = 'deflate, gzip'
+
+let limit = 3
+const BACKPRESSURE = []
+const fixPressure = () => {
+	if (limit++ && BACKPRESSURE.length)
+		return BACKPRESSURE.shift()(limit--)
+}
+
+const requestRateLimiter = () => new Promise(r => {
+	BACKPRESSURE.push(r)
+	if (limit > 1) BACKPRESSURE.shift()(limit--)
+	setTimeout(fixPressure, 3e3+BACKPRESSURE.length * 1e3)
+})
 
 const connections = new Map
 const getConnection = url => {
@@ -150,11 +167,22 @@ const mangarev = (k, v) => {
 	}
 }
 
-const dtx = res => new Promise(r => {
+const cStr = (res, heads) => {
+	switch (heads[HTTP2_HEADER_CONTENT_ENCODING]) {
+		case 'gzip':
+			return res.pipe(zlib.createGunzip())
+		case 'deflate':
+			return res.pipe(zlib.createInflate())
+		default:
+			return res
+	}
+}
+
+const dtx = stream => new Promise(r => {
 	const decoder = new util.TextDecoder
 	let datas = ''
-	res.on('end', d => r(datas + decoder.decode(d, {stream: false})))
-	res.on('data', data => datas += decoder.decode(data, {stream: true}))
+	stream.on('end', d => r(datas + decoder.decode(d, {stream: false})))
+	stream.on('data', data => datas += decoder.decode(data, {stream: true}))
 })
 
 async function manga(data, res, rej, heads, flags) {
@@ -162,7 +190,7 @@ async function manga(data, res, rej, heads, flags) {
 		rej(heads)
 		throw heads
 	}
-	const j = JSON.parse(await dtx(this), mangarev)
+	const j = JSON.parse(await dtx(cStr(this, heads)), mangarev)
 	res(j)
 	return j
 }
@@ -183,24 +211,25 @@ async function chapter(data, res, rej, heads, flags) {
 		rej(heads)
 		throw heads
 	}
-	const tx = await dtx(this)
-	let [, volume, chap, title] = tx.match(rgx.volchtitle)
-	let [, thumb]= tx.match(rgx.thumb)
+	const tx = await dtx(cStr(this, heads))
+	// let [, volume, chap, title] = tx.match(rgx.volchtitle)
+	// let [, thumb]= tx.match(rgx.thumb)
 	let [, chid] = tx.match(rgx.chapid)
-	let [, pchid]= tx.match(rgx.prchid)
-	let [, nchid]= tx.match(rgx.nxchid)
+	// let [, pchid]= tx.match(rgx.prchid)
+	// let [, nchid]= tx.match(rgx.nxchid)
 	let [, manid]= tx.match(rgx.mangid)
 	let [, hash] = tx.match(rgx.dataurl)
 	let [, parr] = tx.match(rgx.pagearr)
 	let [, serve]= tx.match(rgx.serverm)
-	const dataurl = new URL(srv+hash+'/', base)
+	const dataurl = new URL(serve+hash+'/', base)
+	const pages = JSON.parse(parr.replace(/'/g,'"').replace(/,\];?$/,']'))
 	const mdat = {dataurl, pages, mid: Number.parseInt(manid, 10), cid: Number.parseInt(chid), set: Date.now()}
 	durl.set(mdat.cid, mdat)
 	res(mdat)
 	return mdat
 }
 async function txify(data, res, rej, heads, flags) {
-	const data = {heads, data: await dtx(this)}
+	const data = {heads, data: await dtx(cStr(this, heads))}
 	if (heads[HTTP2_HEADER_STATUS] !== 200) {
 		rej(data)
 		throw data
@@ -209,11 +238,13 @@ async function txify(data, res, rej, heads, flags) {
 	return data
 }
 
-const __req = (data, onr, server = base, res, rej) => {
+const __req = async (data, onr, server = base, res, rej) => {
 	if (server === base) {
+		await requestRateLimiter()
 		data[HTTP2_HEADER_USER_AGENT] = UA
 		data[HTTP2_HEADER_COOKIE] = COOKIES
 	}
+	data[HTTP2_HEADER_ACCEPT_ENCODING] = ACCEPTENC
 	const _ = getConnection(server).request(data)
 	_.on('response', onr.bind(_, data, res, rej))
 }
@@ -230,13 +261,23 @@ const request = (path, onr = txify, server = new URL('string' === typeof path ? 
 const getManga = mid => request(`/api/3640f3fb/${mid}`, manga)
 const getChapter = cid => request(`/chapter/${cid}`, chapter)
 const getFullURLs = async cid => {
-	const {dataurl, pages} = durl.get(cid) || await getChapter(cid)
-	let pipe = getConnection(dataurl)
-	return {pipe, pageURLs: pages.map(x => new URL(x, dataurl))}
+	const dURL = durl.get(cid)
+	if (dURL && dURL.set < (Date.now()+72*36e5)) {
+		return {
+			pipe: getConnection(dURL.dataurl),
+			pageURLs: dURL.pages.map(x => new URL(x, dURL.dataurl))
+		}
+	}
+	const {dataurl, pages} = await getChapter(cid)
+	return {
+		pipe: getConnection(dataurl),
+		pageURLs: pages.map(x => new URL(x, dataurl))
+	}
 }
 
 module.exports = {
 	request,
+	requestRateLimiter,
 
 	getManga,
 	getChapter,
@@ -246,6 +287,8 @@ module.exports = {
 	connections,
 
 	durl,
+	limit,
+	BACKPRESSURE,
 
 	genres,
 	stati,
