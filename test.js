@@ -1,4 +1,22 @@
-const {getManga, getChapter, getFullURLs, durl, limit, BACKPRESSURE} = require('./index.js')
+const {getManga, getChapter, getFullURLs, getImages, durl, limit, BACKPRESSURE} = require('./index.js')
+const mkdtmp = require('util').promisify(require('fs').mkdtemp)
+const path = require('path')
+const os = require('os')
+
+async function FSTest(manga) {
+	const d = await mkdtmp(path.join(os.tmpdir(), 'mousou-'))
+	console.log(d)
+	console.log(manga)
+	try {
+		console.log(await getImages(d, manga))
+		console.log('wrote v%dc%f (%i) images %j into %s', manga.vol, manga.ch, manga.cid, durl.get(manga.cid), d)
+	} catch (e) {
+		console.dir(manga, {colors:true})
+		console.dir(e, {colors:true})
+	}
+	require('fs').readdir(d, console.log)
+}
+
 
 async function test() {
 	let requests = 0
@@ -6,10 +24,11 @@ async function test() {
 	let mousou = await getManga(19915)
 	requests++
 	console.dir(mousou, {colors:true, depth: 1})
-	let latest = mousou.chapter.find(({lang}) => lang === 'gb')
+	let latest = mousou.chapter.find(({lang}) => lang === 'gb' || lang === 'en')
 	console.dir(mousou, {colors:true})
 	console.dir(await getChapter(latest.cid), {colors:true})
 	requests++
+	await FSTest(durl.get(latest.cid))
 	let chapters = []
 	let i = 0
 

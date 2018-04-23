@@ -5,7 +5,7 @@ const h2 = require('http2')
 const mkdirp = require('zmkdirp')
 const fs = require('fs')
 const path = require('path')
-const [ftrunc, lstat] = [fs.truncate, fs.lstat].map(util.promisify)
+const [fopen, fclose, ftrunc, lstat] = [fs.open, fs.close, fs.ftruncate, fs.lstat].map(util.promisify)
 const {
 	HTTP2_HEADER_PATH,
 	HTTP2_HEADER_STATUS,
@@ -53,7 +53,7 @@ const getConnection = url => {
 	connection.on('goaway', (err, strid, data) => {
 		connections.delete(h.hostname)
 		console.log('[CONNECTION %s] Recieved GOAWAY frame err %d, last stream %d, data %s (%j)', dISO(), err, strid, data, data)
-		connection.close(() => console.log('closed connection with %s.', h.hostname))
+		connection.close(() => console.log('[CONNECTION %s] Closed connection with %s.', dISO(), h.hostname))
 	})
 	connection.on(
 		'close',
@@ -250,30 +250,29 @@ async function txify(data, res, rej, heads, flags) {
 	return data
 }
 async function imagef(data, res, rej, heads, flags) {
-	if (heads[HTTP2_HEADER_STATUS] !== 200) {
-		rej(heads)
-		throw heads
-	}
 	const length = heads[HTTP2_HEADER_CONTENT_LENGTH]
-	const data = {heads, length, data: cStr(this, heads)}
-	res(data)
-	return data
+	// if (!heads[HTTP2_HEADER_CONTENT_TYPE].startsWith('image')) {
+	// 	rej(heads)
+	// 	throw heads
+	// }
+	const datas = {heads, length, data: cStr(this, heads)}
+	res(datas)
+	return datas
 }
-
 
 
 const __req = async (data, onr, server = base, res, rej) => {
 	if (server === base) {
 		await requestRateLimiter()
-		data[HTTP2_HEADER_USER_AGENT] = UA
 		data[HTTP2_HEADER_COOKIE] = COOKIES
 	}
+	data[HTTP2_HEADER_USER_AGENT] = UA
 	data[HTTP2_HEADER_ACCEPT_ENCODING] = ACCEPTENC
 	const _ = getConnection(server).request(data)
 	_.on('response', onr.bind(_, data, res, rej))
 }
 
-const request = (path, onr = txify, server = new URL('string' === typeof path ? path : '/', base).origin) => new Promise(__req.bind(
+const request = (path, onr = txify, server = path.origin || new URL('string' === typeof path ? path : '/', base).origin) => new Promise(__req.bind(
 	null,
 	('string' === typeof path || path instanceof URL)
 		? {[HTTP2_HEADER_PATH]: new URL(path, base).pathname}
@@ -300,47 +299,54 @@ const getFullURLs = async cid => {
 		cid
 	}
 }
-const wi = (file, length, data) => ftrunc(file, length).then(() => data.pipe(fs.createWriteStream(file)))
-const ri = (file, url) => request(url, imagef).then(({length, data}) => wi(file, length, data))
+const wi = (file, length, data) => fopen(file, 'w').then(async fd => {
+	await ftrunc(fd, length)
+	await fclose(fd)
+	return await new Promise(r => {
+		data.pipe(fs.createWriteStream(file)).on('close', () => r(file))
+	})
+})
+const ri = (file, url) => request(url, imagef, url.origin).then(({length, data}) => wi(file, length, data))
 
 const getImages = async (fout, iin) => {
-	const out = await mkdirp(fout)
+	const out = await mkdirp(await fout)
 	switch (typeof await iin) {
 		case 'object':
-			if (!Object.hasOwnProperty.call(await iin, 'cid'))
-				throw 'iin is an object but lacks cid property'
+			if (Object.hasOwnProperty.call(await iin, 'cid'))
+				iin = (await iin).cid
+			else throw 'iin is object but not a manga object'
 		case 'number':
-			const {pageURLs} = await getFullURLs((await iin).cid || await iin)
+			const {pageURLs} = await getFullURLs(await iin)
 			const a = []
 			for (let i = 0; i < pageURLs.length; i++) {
 				const ext = path.extname(pageURLs[i].pathname)
-				const fname = path.join(out, i.toString().padStart(4,'0') + ext)
-				a[i] = wi(fname, pageURLs[i])
+				const fname = path.join(await fout, i.toString().padStart(4,'0') + ext)
+				a[i] = ri(fname, pageURLs[i])
 			}
-			await Promise.all(a)
+			return await Promise.all(a)
 			break
 		case 'string':
 			try {
-				const s = await lstat(fout)
+				const s = await lstat(await fout)
 				if (s.isDirectory()) {
-					const fname = path.join(fout, path.posix.basename(await iin))
-					wi(fname, await iin)
+					const fname = path.join(await fout, path.posix.basename(await iin))
+					ri(fname, await iin)
 				}
 				if (s.isFile()) {
-					const fname = path.resolve(fout)
-					await wi(fname, await iin)
+					const fname = path.resolve(await fout)
+					await ri(fname, await iin)
 				}
 			} catch (e) {
 				switch (e.code) {
 					case 'ENOENT':
-						const d = await mkdirp(fout)
+						const d = await mkdirp(await fout)
 						const fname = path.join(d, path.posix.basename(await iin))
-						const {length, data} = await request(await iin, imagef)
-						await ftrunc(fname, length)
-						data.pipe(fs.createWriteStream(fname))
+						return await ri(fname, await iin)
 					default: throw e
 				}
 			}
+			break
+		default: throw 'okwtf'
 	}
 }
 
