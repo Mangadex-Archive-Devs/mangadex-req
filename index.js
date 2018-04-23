@@ -2,11 +2,16 @@ const util = require('util')
 const zlib = require('zlib')
 const {URL} = require('url')
 const h2 = require('http2')
+const mkdirp = require('zmkdirp')
+const fs = require('fs')
+const path = require('path')
+const [ftrunc, lstat] = [fs.truncate, fs.lstat].map(util.promisify)
 const {
 	HTTP2_HEADER_PATH,
 	HTTP2_HEADER_STATUS,
 	HTTP2_HEADER_METHOD,
 	HTTP2_HEADER_CONTENT_TYPE,
+	HTTP2_HEADER_CONTENT_LENGTH,
 	HTTP2_HEADER_USER_AGENT,
 	HTTP2_HEADER_COOKIE,
 	HTTP2_HEADER_ACCEPT_ENCODING,
@@ -31,6 +36,7 @@ const requestRateLimiter = () => new Promise(r => {
 	setTimeout(fixPressure, 3e3+BACKPRESSURE.length * 1e3)
 })
 
+const dISO = () => new Date().toISOString().replace('T', ' ').replace('Z','')
 const connections = new Map
 const getConnection = url => {
 	const h = new URL(url, base)
@@ -38,16 +44,22 @@ const getConnection = url => {
 	if (c) return c
 
 	let connection = h2.connect(h.origin)
+	connection.on('connect', () => {
+		console.log('[CONNECTION %s] Connected to %s with alpn %j.', dISO(), h.hostname, connection.alpnProtocol)
+	})
 	connections.set(h.hostname, connection)
+	connection.setTimeout(6e5, connection.close)
+	connection.on('timeout', connection.unref)
 	connection.on('goaway', (err, strid, data) => {
-		console.log('Recieved GOAWAY frame err %d, last stream %d, data %s (%j)', err, strid, data, data)
+		connections.delete(h.hostname)
+		console.log('[CONNECTION %s] Recieved GOAWAY frame err %d, last stream %d, data %s (%j)', dISO(), err, strid, data, data)
 		connection.close(() => console.log('closed connection with %s.', h.hostname))
 	})
-	connection.on('close', connection.unref)
 	connection.on(
 		'close',
 		connections.delete.bind(connections, h.hostname)
 	)
+	connection.on('close', connection.unref)
 	return connection
 }
 
@@ -232,11 +244,23 @@ async function txify(data, res, rej, heads, flags) {
 	const data = {heads, data: await dtx(cStr(this, heads))}
 	if (heads[HTTP2_HEADER_STATUS] !== 200) {
 		rej(data)
-		throw data
+		throw data 
 	}
 	res(data)
 	return data
 }
+async function imagef(data, res, rej, heads, flags) {
+	if (heads[HTTP2_HEADER_STATUS] !== 200) {
+		rej(heads)
+		throw heads
+	}
+	const length = heads[HTTP2_HEADER_CONTENT_LENGTH]
+	const data = {heads, length, data: cStr(this, heads)}
+	res(data)
+	return data
+}
+
+
 
 const __req = async (data, onr, server = base, res, rej) => {
 	if (server === base) {
@@ -265,13 +289,58 @@ const getFullURLs = async cid => {
 	if (dURL && dURL.set < (Date.now()+72*36e5)) {
 		return {
 			pipe: getConnection(dURL.dataurl),
-			pageURLs: dURL.pages.map(x => new URL(x, dURL.dataurl))
+			pageURLs: dURL.pages.map(x => new URL(x, dURL.dataurl)),
+			cid
 		}
 	}
 	const {dataurl, pages} = await getChapter(cid)
 	return {
 		pipe: getConnection(dataurl),
-		pageURLs: pages.map(x => new URL(x, dataurl))
+		pageURLs: pages.map(x => new URL(x, dataurl)),
+		cid
+	}
+}
+const wi = (file, length, data) => ftrunc(file, length).then(() => data.pipe(fs.createWriteStream(file)))
+const ri = (file, url) => request(url, imagef).then(({length, data}) => wi(file, length, data))
+
+const getImages = async (fout, iin) => {
+	const out = await mkdirp(fout)
+	switch (typeof await iin) {
+		case 'object':
+			if (!Object.hasOwnProperty.call(await iin, 'cid'))
+				throw 'iin is an object but lacks cid property'
+		case 'number':
+			const {pageURLs} = await getFullURLs((await iin).cid || await iin)
+			const a = []
+			for (let i = 0; i < pageURLs.length; i++) {
+				const ext = path.extname(pageURLs[i].pathname)
+				const fname = path.join(out, i.toString().padStart(4,'0') + ext)
+				a[i] = wi(fname, pageURLs[i])
+			}
+			await Promise.all(a)
+			break
+		case 'string':
+			try {
+				const s = await lstat(fout)
+				if (s.isDirectory()) {
+					const fname = path.join(fout, path.posix.basename(await iin))
+					wi(fname, await iin)
+				}
+				if (s.isFile()) {
+					const fname = path.resolve(fout)
+					await wi(fname, await iin)
+				}
+			} catch (e) {
+				switch (e.code) {
+					case 'ENOENT':
+						const d = await mkdirp(fout)
+						const fname = path.join(d, path.posix.basename(await iin))
+						const {length, data} = await request(await iin, imagef)
+						await ftrunc(fname, length)
+						data.pipe(fs.createWriteStream(fname))
+					default: throw e
+				}
+			}
 	}
 }
 
@@ -282,6 +351,7 @@ module.exports = {
 	getManga,
 	getChapter,
 	getFullURLs,
+	getImages,
 
 	getConnection,
 	connections,
