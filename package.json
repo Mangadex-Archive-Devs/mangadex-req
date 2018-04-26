@@ -8,7 +8,7 @@
   },
   "repository": {
     "type": "git",
-    "url": "git+ssh://git@github.com/ZaneHannanAU/mangadex-req.git"
+    "url": "git+ssh://git@github.com/Mangadex-Archive-Devs/mangadex-req.git"
   },
   "keywords": [
     "mangadex",
@@ -20,9 +20,9 @@
   "author": "zeen3",
   "license": "WTFPL",
   "bugs": {
-    "url": "https://github.com/ZaneHannanAU/mangadex-req/issues"
+    "url": "https://github.com/Mangadex-Archive-Devs/mangadex-req/issues"
   },
-  "homepage": "https://github.com/ZaneHannanAU/mangadex-req#readme",
+  "homepage": "https://github.com/Mangadex-Archive-Devs/mangadex-req#readme",
   "dependencies": {
     "zmkdirp": "^2.0.1"
   }
