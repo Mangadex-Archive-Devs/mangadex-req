@@ -105,7 +105,8 @@ const genres = [
 	'Yaoi',
 	'Yuri',
 	'[no chapters]',
-	'Game'
+	'Game',
+	'Isekai'
 ]
 const stati = [
 	'unknown',
