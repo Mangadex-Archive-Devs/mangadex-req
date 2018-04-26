@@ -30,7 +30,12 @@ Returns `Promise<json, heads>`
 
 * `cid`: `<number>` | `<string>` chapter to retrieve pages of.
 
-Returns `Promise<{pipe, pageURLs}, err>`
+Returns `Promise<{pipe, pageURLs, cid}, err>`
+
+### `getImages(fout, iin)`
+
+* `fout`: `<string>` directory to put images into
+* `iin`: `<number>` | `<Object{cid}>` cid to request
 
 ### `getConnection(service)`
 
