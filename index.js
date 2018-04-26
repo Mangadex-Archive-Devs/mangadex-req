@@ -208,15 +208,16 @@ async function manga(data, res, rej, heads, flags) {
 }
 
 const rgx = {
-	volchtitle: /<title>(?:Vol\. (\S+))?\s*(?:Ch\. (\S+))?\s*\((.+?)\) - MangaDex<\/title>/,
-	thumb: /<meta property="og:image" content="(.+\/\d+\.thumb\.[^"]+)">/,
-	chapid: /var chapter_id = (\d+);/,
-	prchid: /var prev_chapter_id = (\d+);/,
-	nxchid: /var next_chapter_id = (\d+);/,
-	mangid: /var manga_id = (\d+);/,
-	dataurl: /var dataurl = '([0-9a-z]{32})';/,
-	pagearr: /var page_array = (\[[^\]]+\]);?/,
-	serverm: /var server = '([^']+)';/
+	// volchtitle: /<title>(?:Vol\. (\S+))?\s*(?:Ch\. (\S+))?\s*\((.+?)\) - MangaDex<\/title>/,
+	// thumb: /<meta property="og:image" content="(.+\/\d+\.thumb\.[^"]+)">/,
+	// chapid: /var chapter_id = (\d+);/,
+	// prchid: /var prev_chapter_id = (\d+);/,
+	// nxchid: /var next_chapter_id = (\d+);/,
+	// mangid: /var manga_id = (\d+);/,
+	// dataurl: /var dataurl = '([0-9a-z]{32})';/,
+	// pagearr: /var page_array = (\[[^\]]+\]);?/,
+	// serverm: /var server = '([^']+)';/,
+	chapter: /<script data-type=(['"])chapter\1>(\{.*?\})<\/script>/
 }
 async function chapter(data, res, rej, heads, flags) {
 	if (heads[HTTP2_HEADER_STATUS] !== 200) {
@@ -226,16 +227,18 @@ async function chapter(data, res, rej, heads, flags) {
 	const tx = await dtx(cStr(this, heads))
 	// let [, volume, chap, title] = tx.match(rgx.volchtitle)
 	// let [, thumb]= tx.match(rgx.thumb)
-	let [, chid] = tx.match(rgx.chapid)
+	// let [, chid] = tx.match(rgx.chapid)
 	// let [, pchid]= tx.match(rgx.prchid)
 	// let [, nchid]= tx.match(rgx.nxchid)
-	let [, manid]= tx.match(rgx.mangid)
-	let [, hash] = tx.match(rgx.dataurl)
-	let [, parr] = tx.match(rgx.pagearr)
-	let [, serve]= tx.match(rgx.serverm)
-	const dataurl = new URL(serve+hash+'/', base)
-	const pages = JSON.parse(parr.replace(/'/g,'"').replace(/,\];?$/,']'))
-	const mdat = {dataurl, pages, mid: Number.parseInt(manid, 10), cid: Number.parseInt(chid), set: Date.now()}
+	// let [, manid]= tx.match(rgx.mangid)
+	// let [, hash] = tx.match(rgx.dataurl)
+	// let [, parr] = tx.match(rgx.pagearr)
+	// let [, serve]= tx.match(rgx.serverm)
+	const json_rgx = tx.match(rgx.chapter)
+	const j = JSON.parse(json_rgx[2])
+	const dataurl = new URL(j.server+j.dataurl+'/', base)
+	const pages = j.page_array
+	const mdat = {dataurl, lang: j.flag_url, pages, mid: j.manga_id, cid: j.chapter_id, set: Date.now()}
 	durl.set(mdat.cid, mdat)
 	res(mdat)
 	return mdat
