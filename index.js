@@ -254,7 +254,7 @@ async function txify(data, res, rej, heads, flags) {
 	return data
 }
 async function imagef(data, res, rej, heads, flags) {
-	const length = heads[HTTP2_HEADER_CONTENT_LENGTH]
+	const length = Number.parseInt(heads[HTTP2_HEADER_CONTENT_LENGTH],10)
 	// if (!heads[HTTP2_HEADER_CONTENT_TYPE].startsWith('image')) {
 	// 	rej(heads)
 	// 	throw heads
